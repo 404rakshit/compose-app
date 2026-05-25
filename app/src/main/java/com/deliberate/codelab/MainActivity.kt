@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.ui.Modifier
 import androidx.activity.enableEdgeToEdge
+import com.deliberate.codelab.ui.navigation.AppNavigation
 import com.deliberate.codelab.ui.theme.ProgressAppTheme
 import com.deliberate.codelab.ui.screens.TodoScreen
 
@@ -24,10 +25,8 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    TodoScreen(
-                        viewModel = androidx.lifecycle.viewmodel.compose.viewModel(
-                            factory = viewModelFactory
-                        )
+                    AppNavigation(
+                        viewModel = androidx.lifecycle.viewmodel.compose.viewModel(factory = viewModelFactory)
                     )
                 }
             }
