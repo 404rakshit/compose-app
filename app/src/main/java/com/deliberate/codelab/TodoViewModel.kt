@@ -1,13 +1,13 @@
 package com.deliberate.codelab
 
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.ui.graphics.toArgb
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.deliberate.codelab.domain.model.Priority
-import com.deliberate.codelab.domain.model.Repetition
-import com.deliberate.codelab.domain.model.Status
-import com.deliberate.codelab.domain.model.TodoItem
+import com.deliberate.codelab.ui.screens.HabitDraft // Make sure this matches where you put HabitDraft!
+import com.deliberate.quickalarm.domain.model.Status
+import com.deliberate.quickalarm.domain.model.TodoItem
 import kotlinx.coroutines.launch
 
 class TodoViewModel(private val repository: TodoRepository) : ViewModel() {
@@ -20,38 +20,36 @@ class TodoViewModel(private val repository: TodoRepository) : ViewModel() {
     }
 
     private fun loadTodos() {
-        // Launches a coroutine tied to this ViewModel's lifecycle
         viewModelScope.launch {
-            // Suspends here until the DB returns the data, without freezing the UI!
             val fetchedTodos = repository.getAllTodos()
             _todos.clear()
             _todos.addAll(fetchedTodos)
         }
     }
 
-    fun addTodo(
-        title: String,
-        description: String = "",
-        priority: Priority = Priority.MEDIUM,
-        repetition: Repetition = Repetition.NONE,
-        timeInMillis: Long? = null
-    ) {
-        if (title.isNotBlank()) {
-            // Create the complex item using our new Enums
+    // --- REPLACED addTodo WITH THIS ---
+    fun saveNewHabit(draft: HabitDraft) {
+        if (draft.name.isNotBlank()) {
             val newTodo = TodoItem(
-                title = title,
-                description = description,
-                priority = priority,
-                repetition = repetition,
-                status = Status.PENDING
+                // We leave 'id' blank so the repository can generate a UUID
+                title = draft.name,
+                status = Status.PENDING,
+                type = draft.type,
+                icon = draft.icon,
+                colorArgb = draft.color.toArgb(), // Converts Compose Color to Int
+                repeatGoal = draft.repeatGoal,
+                category = draft.category,
+                reminders = draft.reminders.joinToString(",") // Converts List to String
             )
 
-            // Instantly update the UI
+            // Optimistic UI Update so the user feels no lag
             _todos.add(newTodo)
 
-            // Fire and forget the database save in the background
+            // Fire and forget the DB save
             viewModelScope.launch {
-                repository.insertTodo(newTodo)
+                repository.insert(newTodo) // Using the updated insert method
+                // Reload from DB to ensure we grab the auto-generated UUID for future edits/deletes
+                loadTodos()
             }
         }
     }
@@ -60,7 +58,6 @@ class TodoViewModel(private val repository: TodoRepository) : ViewModel() {
         val index = _todos.indexOfFirst { it.id == id }
         if (index != -1) {
             val currentTask = _todos[index]
-            // If we are moving from Pending -> Completed, log it!
             val isNowCompleted = currentTask.status != Status.COMPLETED
             val newStatus = if (isNowCompleted) Status.COMPLETED else Status.PENDING
 
@@ -68,25 +65,18 @@ class TodoViewModel(private val repository: TodoRepository) : ViewModel() {
             _todos[index] = currentTask.copy(status = newStatus)
 
             viewModelScope.launch {
-                // Update the main task row
                 repository.updateTodoStatus(id, newStatus)
 
-                // Write to the history log to build the streak
                 if (isNowCompleted) {
                     repository.logTaskCompletion(id)
-
-                    // You can now fetch the updated streak to display in the UI!
-                    // val newStreak = repository.calculateCurrentStreak(id)
                 }
             }
         }
     }
 
     fun deleteTodo(id: String) {
-        // Optimistic UI update
         _todos.removeAll { it.id == id }
 
-        // Background sync
         viewModelScope.launch {
             repository.deleteTodo(id)
         }

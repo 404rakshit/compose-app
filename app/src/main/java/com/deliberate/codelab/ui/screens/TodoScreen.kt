@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -25,29 +26,22 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.deliberate.codelab.TodoViewModel
-import com.deliberate.codelab.domain.model.Status
-import com.deliberate.codelab.domain.model.TodoItem
-import androidx.compose.foundation.lazy.itemsIndexed
+import com.deliberate.quickalarm.domain.model.Status
+import com.deliberate.quickalarm.domain.model.TodoItem
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
-fun TodoScreen(viewModel: TodoViewModel) {
-    // Placeholder data
-    val todos = remember {
-        listOf(
-            TodoItem(title = "Drink a glass of water", status = Status.COMPLETED),
-            TodoItem(title = "Meditate to relax", status = Status.COMPLETED),
-            TodoItem(title = "Stretch for 10 minutes", status = Status.PENDING),
-            TodoItem(title = "Go for a short walk", status = Status.PENDING)
-        )
-    }
+fun TodoScreen(viewModel: TodoViewModel, onAddHabitClick: () -> Unit) {
+    // 1. USE REAL DATA FROM VIEWMODEL
+    val todos = viewModel.todos
 
     Scaffold(
-        // Use the native app background color
         containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { /* Open your CreateTaskDialog */ },
-                // Use native accent colors for the FAB
+                onClick = onAddHabitClick,
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                 shape = CircleShape
@@ -91,6 +85,16 @@ fun TodoScreen(viewModel: TodoViewModel) {
 
             item { Spacer(modifier = Modifier.height(24.dp)) }
 
+            // 2. SHOW EMPTY STATE IF NO HABITS
+            if (todos.isEmpty()) {
+                item {
+                    Box(modifier = Modifier.fillMaxWidth().padding(top = 32.dp), contentAlignment = Alignment.Center) {
+                        Text("No habits yet. Click + to start!", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+            }
+
+            // 3. RENDER REAL LIST
             itemsIndexed(todos) { index, todo ->
                 RoutineTimelineItem(
                     todo = todo,
@@ -104,6 +108,9 @@ fun TodoScreen(viewModel: TodoViewModel) {
 
 @Composable
 fun HeaderSection() {
+    // Dynamically format today's date (e.g., "Thursday, 10 March, 2025")
+    val currentDate = SimpleDateFormat("EEEE, d MMMM, yyyy", Locale.getDefault()).format(Date())
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -111,13 +118,13 @@ fun HeaderSection() {
     ) {
         Column {
             Text(
-                text = "Morning, Budi",
+                text = "Morning, Budi", // We can make the username dynamic later!
                 style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onBackground
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Thursday, 10 March, 2025",
+                text = currentDate,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -137,6 +144,8 @@ fun HeaderSection() {
 
 @Composable
 fun WeeklyCalendar() {
+    // Note: For now, keeping the mock week display.
+    // We can use Java Calendar logic here later to make it a true rolling week.
     val days = listOf("Mon" to "7", "Tue" to "8", "Wed" to "9", "Thu" to "10", "Fri" to "11", "Sat" to "12", "Sun" to "13")
     val selectedDay = "10"
 
@@ -157,7 +166,6 @@ fun WeeklyCalendar() {
                 Spacer(modifier = Modifier.height(8.dp))
                 Surface(
                     shape = CircleShape,
-                    // Use Primary color for active, transparent for inactive
                     color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
                     modifier = Modifier.size(48.dp)
                 ) {
@@ -165,7 +173,6 @@ fun WeeklyCalendar() {
                         Text(
                             text = date,
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            // Invert text color based on background
                             color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onBackground
                         )
                     }
@@ -179,7 +186,6 @@ fun WeeklyCalendar() {
 fun ReminderBanner() {
     Surface(
         shape = RoundedCornerShape(24.dp),
-        // Tertiary colors are great for promo/highlight banners in Material 3
         color = MaterialTheme.colorScheme.tertiaryContainer,
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -228,8 +234,10 @@ fun ReminderBanner() {
 @Composable
 fun RoutineTimelineItem(todo: TodoItem, isLastItem: Boolean, onToggle: () -> Unit) {
     val isCompleted = todo.status == Status.COMPLETED
-    // Extract color for the dashed line to use inside the Canvas
     val outlineColor = MaterialTheme.colorScheme.outlineVariant
+
+    // Safely parse the custom color they chose in the wizard
+    val customColor = if (todo.colorArgb != 0) Color(todo.colorArgb) else MaterialTheme.colorScheme.secondary
 
     Row(modifier = Modifier
         .fillMaxWidth()
@@ -280,7 +288,6 @@ fun RoutineTimelineItem(todo: TodoItem, isLastItem: Boolean, onToggle: () -> Uni
             modifier = Modifier
                 .weight(1f)
                 .padding(bottom = 16.dp),
-            // Tie the card to the standard Surface color
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             shape = RoundedCornerShape(20.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -291,35 +298,70 @@ fun RoutineTimelineItem(todo: TodoItem, isLastItem: Boolean, onToggle: () -> Uni
                     .fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // 1. DYNAMIC ICON & COLOR BACKGROUND
                 Surface(
                     shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    // Use a 20% opacity version of their chosen color to create a beautiful, soft background!
+                    color = customColor.copy(alpha = 0.2f),
                     modifier = Modifier.size(48.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Text(if (isCompleted) "🥛" else "🧘", fontSize = 24.sp)
+                        Text(text = todo.icon, fontSize = 24.sp)
                     }
                 }
 
                 Spacer(modifier = Modifier.width(16.dp))
 
+                // 2. DYNAMIC TEXT & SAFE CHECKS
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = todo.title,
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurface
                     )
+
+                    // The safe description block
+                    if (!todo.description.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = todo.description,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2
+                        )
+                    }
+
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Streak 3 days",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "Streak 3 days", // Placeholder for next feature
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        // Inline priority dot
+                        if (todo.priority != null) {
+                            Text(" • ", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(
+                                text = "${todo.priority.name} PRIORITY",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
                 }
 
+                // 3. DYNAMIC REMINDERS
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.Notifications, contentDescription = "Time", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
-                    Text("5 min", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (todo.reminders.isNotBlank()) {
+                        Icon(Icons.Default.Notifications, contentDescription = "Time", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
+                        // Grab just the first reminder time to display on the card
+                        Text(todo.reminders.split(",").first(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    } else {
+                        // If no reminders, just show the frequency goal
+                        Text(todo.repeatGoal, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
             }
         }

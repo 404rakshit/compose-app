@@ -16,6 +16,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -36,7 +37,12 @@ fun OnboardingScreen(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .navigationBarsPadding()
+                .padding(24.dp)// <-- ADD THIS HERE!
+        ) {
 
             // ==========================================
             // TOP NAVIGATION BAR
@@ -47,21 +53,25 @@ fun OnboardingScreen(
                     .padding(top = 36.dp, start = 8.dp, end = 8.dp)
                     .height(48.dp)
             ) {
-                if (pagerState.currentPage > 0) {
-                    IconButton(
-                        onClick = {
-                            coroutineScope.launch {
-                                pagerState.animateScrollToPage(pagerState.currentPage - 1)
-                            }
-                        },
-                        modifier = Modifier.align(Alignment.CenterStart)
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Go Back",
-                            tint = MaterialTheme.colorScheme.onBackground
-                        )
-                    }
+                val showBackButton = pagerState.currentPage > 0
+
+                // 1. Keep the button in the tree, but control visibility via alpha
+                IconButton(
+                    onClick = {
+                        coroutineScope.launch {
+                            pagerState.animateScrollToPage(pagerState.currentPage - 1)
+                        }
+                    },
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .alpha(if (showBackButton) 1f else 0f), // Visually hide when on page 0
+                    enabled = showBackButton // Prevent the user from clicking the invisible button
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Go Back",
+                        tint = MaterialTheme.colorScheme.onBackground
+                    )
                 }
 
                 Row(
@@ -70,18 +80,27 @@ fun OnboardingScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     repeat(3) { iteration ->
-                        val color = if (pagerState.currentPage == iteration) {
+                        val isActive = pagerState.currentPage == iteration
+                        val color = if (isActive) {
                             MaterialTheme.colorScheme.primary
                         } else {
                             MaterialTheme.colorScheme.surfaceVariant
                         }
+
+                        // 2. Wrap each dot in a fixed 12.dp Box so their expansion doesn't push neighbors
                         Box(
                             modifier = Modifier
                                 .padding(horizontal = 4.dp)
-                                .size(if (pagerState.currentPage == iteration) 12.dp else 8.dp)
-                                .clip(CircleShape)
-                                .background(color)
-                        )
+                                .size(12.dp), // The container size never changes
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(if (isActive) 12.dp else 8.dp) // The physical dot expands securely inside
+                                    .clip(CircleShape)
+                                    .background(color)
+                            )
+                        }
                     }
                 }
             }
@@ -133,7 +152,7 @@ fun OnboardingScreen(
             }
 
             // The extra space added beneath the button
-            Spacer(modifier = Modifier.height(65.dp))
+            // Spacer(modifier = Modifier.height(65.dp))
         }
     }
 }

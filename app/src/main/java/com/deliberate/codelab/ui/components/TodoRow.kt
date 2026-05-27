@@ -5,9 +5,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.deliberate.codelab.domain.model.Status
-import com.deliberate.codelab.domain.model.TodoItem
+import com.deliberate.quickalarm.domain.model.Status
+import com.deliberate.quickalarm.domain.model.TodoItem
 
 @Composable
 fun TodoRow(
@@ -30,27 +31,48 @@ fun TodoRow(
             )
             Spacer(modifier = Modifier.width(8.dp))
             Column(modifier = Modifier.weight(1f)) {
+                // 1. The Title
                 Text(
                     text = todo.title,
-                    style = if (todo.status == Status.COMPLETED)
-                        MaterialTheme.typography.titleMedium.copy(textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough)
-                    else
-                        MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                if (todo.description.isNotBlank()) {
+
+                // 2. The Optional Description (Safely checking for null)
+                if (!todo.description.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = todo.description,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2 // Keeps the card from getting too tall
                     )
                 }
-                Text(
-                    text = "Priority: ${todo.priority.name}",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // 3. Streak and Optional Priority Row
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "Streak 3 days", // We will replace this with real math later!
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    // Add a little dot separator if there is a priority to show
+                    if (todo.priority != null) {
+                        Text(
+                            text = " • ",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "${todo.priority.name} PRIORITY",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
             }
             TextButton(onClick = onDelete) {
                 Text("Delete", color = MaterialTheme.colorScheme.error)

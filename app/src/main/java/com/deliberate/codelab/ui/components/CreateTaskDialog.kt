@@ -23,7 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.deliberate.codelab.domain.model.Repetition
+import com.deliberate.quickalarm.domain.model.Repetition
 import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class)
