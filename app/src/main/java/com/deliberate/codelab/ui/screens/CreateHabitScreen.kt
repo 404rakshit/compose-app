@@ -35,6 +35,7 @@ import androidx.compose.material3.TextButton
 
 import android.Manifest
 import android.app.AlarmManager
+import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -78,7 +79,18 @@ fun CreateHabitScreen(
 
     // Check for exact alarm permissions when this screen loads
     LaunchedEffect(Unit) {
-        checkAndRequestExactAlarmPermission(context)
+        // 1. Check Exact Alarms first (Android 12+)
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !alarmManager.canScheduleExactAlarms()) {
+            checkAndRequestExactAlarmPermission(context)
+        }
+        // 2. If they already have Exact Alarms, check Full Screen Intent (Android 14+)
+        else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+            if (!notificationManager.canUseFullScreenIntent()) {
+                checkAndRequestFullScreenPermission(context)
+            }
+        }
     }
 
     Scaffold(
@@ -498,6 +510,20 @@ fun checkAndRequestExactAlarmPermission(context: Context) {
             // Open the exact system settings screen for this permission
             val intent = Intent().apply {
                 action = Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM
+                data = Uri.parse("package:${context.packageName}")
+            }
+            context.startActivity(intent)
+        }
+    }
+}
+
+fun checkAndRequestFullScreenPermission(context: Context) {
+    // UPSIDE_DOWN_CAKE is API 34 (Android 14)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        if (!notificationManager.canUseFullScreenIntent()) {
+            val intent = Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT).apply {
                 data = Uri.parse("package:${context.packageName}")
             }
             context.startActivity(intent)

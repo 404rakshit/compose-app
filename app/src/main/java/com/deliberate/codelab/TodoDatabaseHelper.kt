@@ -9,7 +9,7 @@ class TodoDatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_
     companion object {
         const val DATABASE_NAME = "habits.db"
         // Bump to version 3 to apply these massive merged changes safely
-        const val DATABASE_VERSION = 3
+        const val DATABASE_VERSION = 2
 
         // --- TODOS TABLE ---
         const val TABLE_TODOS = "todos"
