@@ -26,11 +26,22 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.deliberate.codelab.TodoViewModel
-import com.deliberate.quickalarm.domain.model.Status
-import com.deliberate.quickalarm.domain.model.TodoItem
+import com.deliberate.codelab.domain.model.Status
+import com.deliberate.codelab.domain.model.TodoItem
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+
+import androidx.compose.animation.animateContentSize
+import androidx.compose.foundation.clickable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import com.deliberate.codelab.ui.components.HabitContributionGraph
+import java.time.LocalDate
+import androidx.compose.ui.graphics.Brush
 
 @Composable
 fun TodoScreen(viewModel: TodoViewModel, onAddHabitClick: () -> Unit) {
@@ -61,8 +72,8 @@ fun TodoScreen(viewModel: TodoViewModel, onAddHabitClick: () -> Unit) {
             item { Spacer(modifier = Modifier.height(32.dp)) }
             item { WeeklyCalendar() }
             item { Spacer(modifier = Modifier.height(32.dp)) }
-            item { ReminderBanner() }
-            item { Spacer(modifier = Modifier.height(32.dp)) }
+            // item { ReminderBanner() }
+//            item { Spacer(modifier = Modifier.height(32.dp)) }
 
             item {
                 Row(
@@ -99,7 +110,10 @@ fun TodoScreen(viewModel: TodoViewModel, onAddHabitClick: () -> Unit) {
                 RoutineTimelineItem(
                     todo = todo,
                     isLastItem = index == todos.lastIndex,
-                    onToggle = { viewModel.toggleTodo(todo.id) }
+                    onToggle = { viewModel.toggleTodo(todo.id) },
+
+                    // ADD THIS LINE: Pass the real history to the graph!
+                    completedDates = todo.completedDates
                 )
             }
         }
@@ -144,10 +158,31 @@ fun HeaderSection() {
 
 @Composable
 fun WeeklyCalendar() {
-    // Note: For now, keeping the mock week display.
-    // We can use Java Calendar logic here later to make it a true rolling week.
-    val days = listOf("Mon" to "7", "Tue" to "8", "Wed" to "9", "Thu" to "10", "Fri" to "11", "Sat" to "12", "Sun" to "13")
-    val selectedDay = "10"
+    // 1. Define formatters for the Day (e.g., "Mon") and Date (e.g., "7")
+    val dayFormatter = SimpleDateFormat("EEE", Locale.getDefault())
+    val dateFormatter = SimpleDateFormat("d", Locale.getDefault())
+
+    // 2. Identify today's date string so we can highlight it
+    val today = Calendar.getInstance()
+    val todayDateString = dateFormatter.format(today.time)
+
+    // 3. Generate a rolling 7-day week (3 days past, today, 3 days future)
+    val days = remember {
+        val calendar = Calendar.getInstance()
+        // Move the calendar back by 3 days to start our rolling window
+        calendar.add(Calendar.DAY_OF_YEAR, -3)
+
+        // Map over 7 days to generate the pairs of (DayName to DateNumber)
+        (0..6).map {
+            val dayName = dayFormatter.format(calendar.time)
+            val dateNum = dateFormatter.format(calendar.time)
+
+            // Advance the calendar by 1 day for the next iteration
+            calendar.add(Calendar.DAY_OF_YEAR, 1)
+
+            dayName to dateNum
+        }
+    }
 
     LazyRow(
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -155,7 +190,7 @@ fun WeeklyCalendar() {
     ) {
         items(days.size) { index ->
             val (dayName, date) = days[index]
-            val isSelected = date == selectedDay
+            val isSelected = date == todayDateString
 
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
@@ -232,77 +267,54 @@ fun ReminderBanner() {
 }
 
 @Composable
-fun RoutineTimelineItem(todo: TodoItem, isLastItem: Boolean, onToggle: () -> Unit) {
+fun RoutineTimelineItem(
+    todo: TodoItem,
+    isLastItem: Boolean,
+    onToggle: () -> Unit,
+    completedDates: Set<LocalDate> = emptySet()
+) {
     val isCompleted = todo.status == Status.COMPLETED
-    val outlineColor = MaterialTheme.colorScheme.outlineVariant
-
-    // Safely parse the custom color they chose in the wizard
     val customColor = if (todo.colorArgb != 0) Color(todo.colorArgb) else MaterialTheme.colorScheme.secondary
 
-    Row(modifier = Modifier
-        .fillMaxWidth()
-        .height(IntrinsicSize.Min)
+    var isExpanded by remember { mutableStateOf(true) }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 16.dp)
+            .animateContentSize(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        shape = RoundedCornerShape(20.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        // --- LEFT SIDE: THE TIMELINE ---
+        // --- GRADIENT BACKGROUND APPLIED HERE ---
         Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier
-                .width(40.dp)
-                .fillMaxHeight()
-        ) {
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Box(
-                modifier = Modifier
-                    .size(20.dp)
-                    .clip(CircleShape)
-                    .background(if (isCompleted) MaterialTheme.colorScheme.primary else Color.Transparent)
-                    .clickable { onToggle() },
-                contentAlignment = Alignment.Center
-            ) {
-                if (isCompleted) {
-                    Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(14.dp))
-                } else {
-                    Icon(Icons.Outlined.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(20.dp))
-                }
-            }
-
-            if (!isLastItem) {
-                Canvas(modifier = Modifier
-                    .fillMaxHeight()
-                    .padding(top = 4.dp)) {
-                    val pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)
-                    drawLine(
-                        color = outlineColor,
-                        start = Offset(size.width / 2, 0f),
-                        end = Offset(size.width / 2, size.height),
-                        strokeWidth = 3f,
-                        pathEffect = pathEffect
+                .fillMaxWidth()
+                .background(
+                    brush = Brush.linearGradient(
+                        colors = listOf(
+                            customColor.copy(alpha = 0.2f), // Starts with a 20% tint of the user's color
+                            Color.Transparent               // Fades cleanly into the default surface color
+                        )
                     )
-                }
-            }
-        }
-
-        // --- RIGHT SIDE: THE TASK CARD ---
-        Card(
-            modifier = Modifier
-                .weight(1f)
-                .padding(bottom = 16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            shape = RoundedCornerShape(20.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                )
         ) {
+
+            // --- TOP SECTION: Icon, Details, and the Top-Right Checkmark ---
             Row(
                 modifier = Modifier
-                    .padding(16.dp)
-                    .fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+                    .fillMaxWidth()
+                    .clickable { isExpanded = !isExpanded }
+                    .padding(16.dp),
+                verticalAlignment = Alignment.Top
             ) {
-                // 1. DYNAMIC ICON & COLOR BACKGROUND
+
+                // 1. DYNAMIC ICON Background
                 Surface(
                     shape = RoundedCornerShape(12.dp),
-                    // Use a 20% opacity version of their chosen color to create a beautiful, soft background!
-                    color = customColor.copy(alpha = 0.2f),
+                    // Upped the alpha slightly to 0.25f so the icon block still pops against the new gradient!
+                    color = customColor.copy(alpha = 0.25f),
                     modifier = Modifier.size(48.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
@@ -312,7 +324,7 @@ fun RoutineTimelineItem(todo: TodoItem, isLastItem: Boolean, onToggle: () -> Uni
 
                 Spacer(modifier = Modifier.width(16.dp))
 
-                // 2. DYNAMIC TEXT & SAFE CHECKS
+                // 2. MIDDLE DETAILS (Title & Desc)
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = todo.title,
@@ -320,7 +332,6 @@ fun RoutineTimelineItem(todo: TodoItem, isLastItem: Boolean, onToggle: () -> Uni
                         color = MaterialTheme.colorScheme.onSurface
                     )
 
-                    // The safe description block
                     if (!todo.description.isNullOrBlank()) {
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
@@ -331,18 +342,17 @@ fun RoutineTimelineItem(todo: TodoItem, isLastItem: Boolean, onToggle: () -> Uni
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "Streak 3 days", // Placeholder for next feature
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+//                        Text(
+//                            text = "Streak 3 days",
+//                            style = MaterialTheme.typography.labelMedium,
+//                            color = MaterialTheme.colorScheme.onSurfaceVariant
+//                        )
 
-                        // Inline priority dot
                         if (todo.priority != null) {
-                            Text(" • ", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+//                            Text(" • ", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(
                                 text = "${todo.priority.name} PRIORITY",
                                 style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
@@ -352,17 +362,52 @@ fun RoutineTimelineItem(todo: TodoItem, isLastItem: Boolean, onToggle: () -> Uni
                     }
                 }
 
-                // 3. DYNAMIC REMINDERS
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    if (todo.reminders.isNotBlank()) {
-                        Icon(Icons.Default.Notifications, contentDescription = "Time", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
-                        // Grab just the first reminder time to display on the card
-                        Text(todo.reminders.split(",").first(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                // 3. TOP-RIGHT CHECKMARK & REMINDERS
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.Top
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(28.dp)
+                            .clip(CircleShape)
+                            .background(if (isCompleted) MaterialTheme.colorScheme.primary else Color.Transparent)
+                            .clickable { onToggle() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isCompleted) {
+                            Icon(Icons.Default.Check, contentDescription = "Completed", tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(16.dp))
+                        } else {
+                            Icon(Icons.Outlined.CheckCircle, contentDescription = "Mark Complete", tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(28.dp))
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    if (!todo.reminders.isNullOrBlank()) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.Notifications, contentDescription = "Time", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(todo.reminders.split(",").first(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     } else {
-                        // If no reminders, just show the frequency goal
                         Text(todo.repeatGoal, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
+            }
+
+            // --- BOTTOM SECTION: The Heatmap Graph ---
+            if (isExpanded) {
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                )
+
+//                HabitContributionGraph(
+//                    completedDates = completedDates,
+//                    habitColor = customColor, // PASS THE COLOR HERE
+//                    modifier = Modifier.padding(bottom = 8.dp)
+//                )
             }
         }
     }

@@ -1,4 +1,8 @@
-package com.deliberate.quickalarm.domain.model // Use your actual package name
+package com.deliberate.codelab.domain.model
+
+import java.time.LocalDate
+
+// Use your actual package name
 
 // Keep your existing Enums
 enum class Status { PENDING, COMPLETED }
@@ -23,5 +27,7 @@ data class TodoItem(
     val description: String? = null,
     val repetition: Repetition? = Repetition.DAILY,
     val timeInMillis: Long? = 0L,
-    val priority: Priority? = Priority.LOW
+    val priority: Priority? = Priority.LOW,
+
+    val completedDates: Set<LocalDate> = emptySet()
 )

@@ -7,8 +7,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.deliberate.quickalarm.domain.model.Status
-import com.deliberate.quickalarm.domain.model.TodoItem
+import com.deliberate.codelab.domain.model.Status
+import com.deliberate.codelab.domain.model.TodoItem
 
 @Composable
 fun TodoRow(
@@ -53,11 +53,11 @@ fun TodoRow(
 
                 // 3. Streak and Optional Priority Row
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "Streak 3 days", // We will replace this with real math later!
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+//                    Text(
+//                        text = "Streak 3 days", // We will replace this with real math later!
+//                        style = MaterialTheme.typography.labelMedium,
+//                        color = MaterialTheme.colorScheme.onSurfaceVariant
+//                    )
 
                     // Add a little dot separator if there is a priority to show
                     if (todo.priority != null) {

@@ -1,16 +1,26 @@
 package com.deliberate.codelab
 
+import android.content.Context
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.ui.graphics.toArgb
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.deliberate.codelab.ui.screens.HabitDraft // Make sure this matches where you put HabitDraft!
-import com.deliberate.quickalarm.domain.model.Status
-import com.deliberate.quickalarm.domain.model.TodoItem
+import com.deliberate.codelab.domain.model.Status
+import com.deliberate.codelab.domain.model.TodoItem
+import com.deliberate.codelab.domain.usecase.CompleteTaskUseCase
+import com.deliberate.codelab.domain.usecase.SaveTodoUseCase
+import com.deliberate.codelab.util.AndroidAlarmScheduler
+import com.deliberate.codelab.util.calculateNextTriggerTime
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 
-class TodoViewModel(private val repository: TodoRepository) : ViewModel() {
+class TodoViewModel(
+    private val repository: TodoRepository, // Keeping this for simple reads/deletes
+    private val saveTodoUseCase: SaveTodoUseCase,
+    private val completeTaskUseCase: CompleteTaskUseCase
+) : ViewModel() {
 
     private val _todos = mutableStateListOf<TodoItem>()
     val todos: List<TodoItem> get() = _todos
@@ -27,54 +37,60 @@ class TodoViewModel(private val repository: TodoRepository) : ViewModel() {
         }
     }
 
-    // --- REPLACED addTodo WITH THIS ---
+    // 🚨 FIX 1: Context is removed. The Use Case handles the system-level details.
     fun saveNewHabit(draft: HabitDraft) {
         if (draft.name.isNotBlank()) {
+
+            // Calculate the exact epoch time for the AlarmManager based on the UI strings
+            val calculatedTime = calculateNextTriggerTime(draft.reminders)
+
             val newTodo = TodoItem(
-                // We leave 'id' blank so the repository can generate a UUID
                 title = draft.name,
                 status = Status.PENDING,
                 type = draft.type,
                 icon = draft.icon,
-                colorArgb = draft.color.toArgb(), // Converts Compose Color to Int
+                colorArgb = draft.color.toArgb(),
                 repeatGoal = draft.repeatGoal,
                 category = draft.category,
-                reminders = draft.reminders.joinToString(",") // Converts List to String
+                reminders = draft.reminders.joinToString(","),
+                // Pass the generated Long down to the database!
+                timeInMillis = calculatedTime
             )
 
-            // Optimistic UI Update so the user feels no lag
+            // Optimistic UI Update
             _todos.add(newTodo)
 
-            // Fire and forget the DB save
             viewModelScope.launch {
-                repository.insert(newTodo) // Using the updated insert method
-                // Reload from DB to ensure we grab the auto-generated UUID for future edits/deletes
+                saveTodoUseCase(newTodo)
                 loadTodos()
             }
         }
     }
 
-    fun toggleTodo(id: String) {
-        val index = _todos.indexOfFirst { it.id == id }
+    // 🚨 FIX 2: We now actually persist the toggle to the database
+    fun toggleTodo(todoId: String) {
+        val index = _todos.indexOfFirst { it.id == todoId }
+
         if (index != -1) {
-            val currentTask = _todos[index]
-            val isNowCompleted = currentTask.status != Status.COMPLETED
-            val newStatus = if (isNowCompleted) Status.COMPLETED else Status.PENDING
+            // 1. Optimistic UI Update: Instantly show it as checked
+            val todo = _todos[index]
+            _todos[index] = todo.copy(status = Status.COMPLETED)
 
-            // Optimistic UI update
-            _todos[index] = currentTask.copy(status = newStatus)
-
+            // 2. Background Persistence & Rescheduling
             viewModelScope.launch {
-                repository.updateTodoStatus(id, newStatus)
+                // This handles the streak logging, repetition math, and alarm updates
+                completeTaskUseCase(todoId)
 
-                if (isNowCompleted) {
-                    repository.logTaskCompletion(id)
-                }
+                // 3. Reload from DB. If it's a repeating daily habit, loadTodos()
+                // will fetch the updated version where the time is bumped to tomorrow
+                // and the status is reset back to PENDING.
+                loadTodos()
             }
         }
     }
 
     fun deleteTodo(id: String) {
+        // Optimistic UI Update
         _todos.removeAll { it.id == id }
 
         viewModelScope.launch {
@@ -84,8 +100,21 @@ class TodoViewModel(private val repository: TodoRepository) : ViewModel() {
 }
 
 @Suppress("UNCHECKED_CAST")
-class TodoViewModelFactory(private val repository: TodoRepository) : ViewModelProvider.Factory {
+class TodoViewModelFactory(
+    private val repository: TodoRepository,
+    private val saveTodoUseCase: SaveTodoUseCase,
+    private val completeTaskUseCase: CompleteTaskUseCase
+) : ViewModelProvider.Factory {
+
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        return TodoViewModel(repository) as T
+        if (modelClass.isAssignableFrom(TodoViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return TodoViewModel(
+                repository = repository,
+                saveTodoUseCase = saveTodoUseCase,
+                completeTaskUseCase = completeTaskUseCase
+            ) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }
 }

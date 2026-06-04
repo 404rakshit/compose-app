@@ -3,6 +3,7 @@ package com.deliberate.codelab.ui.navigation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -70,20 +71,22 @@ fun AppNavigation(
         }
 
         composable(route = Routes.CREATE_HABIT) {
+
+            // 1. Grab the context safely OUTSIDE the click event!
+            val context = androidx.compose.ui.platform.LocalContext.current
+
             CreateHabitScreen(
                 onBack = {
-                    // If they hit the back arrow or phone's back button, go safely to Home.
                     navController.navigate(Routes.HOME) {
-                        popUpTo(0) // Clears back-history so Home is the root
+                        popUpTo(0)
                     }
                 },
                 onSave = { habitDraft ->
-                    // TODO: Pass 'habitDraft' to your ViewModel to save to the database
-                     viewModel.saveNewHabit(habitDraft)
+                    // 2. Pass the pre-grabbed context in safely
+                    viewModel.saveNewHabit(habitDraft)
 
-                    // After saving, route them back to the Home Dashboard
                     navController.navigate(Routes.HOME) {
-                        popUpTo(0) // Clears back-history so Home is the root
+                        popUpTo(0)
                     }
                 }
             )

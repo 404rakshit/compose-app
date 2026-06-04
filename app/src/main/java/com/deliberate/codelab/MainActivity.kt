@@ -16,6 +16,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.deliberate.codelab.data.UserPreferences
 import com.deliberate.codelab.ui.navigation.Routes
 import androidx.compose.runtime.getValue
+import com.deliberate.codelab.domain.usecase.CompleteTaskUseCase
+import com.deliberate.codelab.domain.usecase.SaveTodoUseCase
+import com.deliberate.codelab.util.AndroidAlarmScheduler
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -28,7 +31,17 @@ class MainActivity : ComponentActivity() {
 
         val dbHelper = TodoDatabaseHelper(applicationContext)
         val repository = TodoRepository(dbHelper)
-        val viewModelFactory = TodoViewModelFactory(repository)
+
+        val alarmScheduler = AndroidAlarmScheduler(applicationContext)
+
+        val saveTodoUseCase = SaveTodoUseCase(repository, alarmScheduler)
+        val completeTaskUseCase = CompleteTaskUseCase(repository, alarmScheduler)
+
+        val viewModelFactory = TodoViewModelFactory(
+            repository = repository,
+            saveTodoUseCase = saveTodoUseCase,
+            completeTaskUseCase = completeTaskUseCase
+        )
 
         val userPreferences = UserPreferences(applicationContext)
 

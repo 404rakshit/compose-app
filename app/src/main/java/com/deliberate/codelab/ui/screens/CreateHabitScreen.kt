@@ -33,6 +33,20 @@ import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 
+import android.Manifest
+import android.app.AlarmManager
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
+
 // A simple data class to hold our state before saving
 data class HabitDraft(
     var type: String = "Simple", // "Simple" or "Unit"
@@ -41,7 +55,9 @@ data class HabitDraft(
     var color: Color = Color(0xFFF07C27), // Default Orange
     var repeatGoal: String = "Daily",
     var category: String = "Health",
-    var reminders: List<String> = emptyList() // E.g., ["08:00 AM", "09:00 PM"]
+    var reminders: List<String> = emptyList(), // E.g., ["08:00 AM", "09:00 PM"]
+
+    var timeInMillis: Long? = null
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -50,12 +66,20 @@ fun CreateHabitScreen(
     onBack: () -> Unit,
     onSave: (HabitDraft) -> Unit
 ) {
+
     // 1. Master State
     var draft by remember { mutableStateOf(HabitDraft()) }
 
     // 2. Pager State
     val pagerState = rememberPagerState(pageCount = { 4 })
     val coroutineScope = rememberCoroutineScope()
+
+    val context = LocalContext.current
+
+    // Check for exact alarm permissions when this screen loads
+    LaunchedEffect(Unit) {
+        checkAndRequestExactAlarmPermission(context)
+    }
 
     Scaffold(
         topBar = {
@@ -329,13 +353,27 @@ fun Step3Tracking(
 @Composable
 fun Step4Reminders(
     reminders: List<String>,
-    onAddReminder: (String) -> Unit, // Updated to accept the formatted time string
+    onAddReminder: (String) -> Unit,
     onRemoveReminder: (String) -> Unit
 ) {
-    // State to show/hide the popup
+    val context = LocalContext.current
     var showTimePicker by remember { mutableStateOf(false) }
-    // State to hold the selected hour/minute
     val timePickerState = rememberTimePickerState()
+
+    // ==========================================
+    // NEW: NATIVE COMPOSE PERMISSION LAUNCHER
+    // ==========================================
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            // Permission granted! Show the clock.
+            showTimePicker = true
+        } else {
+            // Permission denied. Tell them why we needed it.
+            Toast.makeText(context, "Notifications are required to remind you!", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     Column(modifier = Modifier.fillMaxSize().padding(24.dp)) {
         Text(
@@ -388,7 +426,26 @@ fun Step4Reminders(
         Spacer(modifier = Modifier.height(24.dp))
 
         OutlinedButton(
-            onClick = { showTimePicker = true }, // Triggers the Dialog
+            onClick = {
+                // ==========================================
+                // NEW: CHECK PERMISSION BEFORE OPENING CLOCK
+                // ==========================================
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    val isGranted = ContextCompat.checkSelfPermission(
+                        context,
+                        Manifest.permission.POST_NOTIFICATIONS
+                    ) == PackageManager.PERMISSION_GRANTED
+
+                    if (isGranted) {
+                        showTimePicker = true // Already have it, open clock!
+                    } else {
+                        permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS) // Ask for it!
+                    }
+                } else {
+                    // Android 12 and below don't need explicit runtime permission for this
+                    showTimePicker = true
+                }
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp),
@@ -408,12 +465,10 @@ fun Step4Reminders(
             onDismissRequest = { showTimePicker = false },
             title = { Text("Select Time") },
             text = {
-                // The actual physical clock UI
                 TimePicker(state = timePickerState)
             },
             confirmButton = {
                 TextButton(onClick = {
-                    // Formatting the 24-hour state into a readable 12-hour AM/PM string
                     val isAm = timePickerState.hour < 12
                     val displayHour = if (timePickerState.hour % 12 == 0) 12 else timePickerState.hour % 12
                     val displayMinute = timePickerState.minute.toString().padStart(2, '0')
@@ -421,7 +476,6 @@ fun Step4Reminders(
 
                     val formattedTime = "$displayHour:$displayMinute $amPm"
 
-                    // Pass it back up to the master state!
                     onAddReminder(formattedTime)
                     showTimePicker = false
                 }) {
@@ -434,5 +488,19 @@ fun Step4Reminders(
                 }
             }
         )
+    }
+}
+
+fun checkAndRequestExactAlarmPermission(context: Context) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        if (!alarmManager.canScheduleExactAlarms()) {
+            // Open the exact system settings screen for this permission
+            val intent = Intent().apply {
+                action = Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM
+                data = Uri.parse("package:${context.packageName}")
+            }
+            context.startActivity(intent)
+        }
     }
 }
