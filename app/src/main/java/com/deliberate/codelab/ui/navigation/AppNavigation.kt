@@ -36,7 +36,7 @@ fun AppNavigation(
     // The NavHost swaps out the UI depending on the current route
     NavHost(
         navController = navController,
-        startDestination = Routes.ONBOARDING
+        startDestination = startDestination
     ) {
 
         // Route 1: The Main List
