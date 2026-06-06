@@ -1,5 +1,6 @@
 package com.deliberate.codelab
 
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
@@ -16,13 +17,20 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.deliberate.codelab.data.UserPreferences
 import com.deliberate.codelab.ui.navigation.Routes
 import androidx.compose.runtime.getValue
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
 import com.deliberate.codelab.domain.usecase.CompleteTaskUseCase
 import com.deliberate.codelab.domain.usecase.SaveTodoUseCase
 import com.deliberate.codelab.util.AndroidAlarmScheduler
+import com.deliberate.codelab.worker.DailyAlarmSyncWorker
+import java.util.concurrent.TimeUnit
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        setupDailyWorkManager(applicationContext)
 
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT),
@@ -73,3 +81,18 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+private fun setupDailyWorkManager(context: Context) {
+    // Request the worker to run approximately every 24 hours
+    val syncRequest = PeriodicWorkRequestBuilder<DailyAlarmSyncWorker>(24, TimeUnit.HOURS)
+        // Optional: Make it run only when the battery isn't dying
+        // .setConstraints(Constraints.Builder().setRequiresBatteryNotLow(true).build())
+        .build()
+
+    // Enqueue Unique ensures we don't accidentally schedule multiple overlapping jobs
+    // if the user opens the app 10 times a day.
+    WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+        "DAILY_ALARM_SYNC",
+        ExistingPeriodicWorkPolicy.KEEP, // Keep the existing schedule if it's already running
+        syncRequest
+    )
+}

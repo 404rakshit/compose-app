@@ -244,6 +244,53 @@ class TodoRepository(private val dbHelper: TodoDatabaseHelper) {
         return@withContext todo
     }
 
+    suspend fun getTodosForDateRange(startTimeMillis: Long, endTimeMillis: Long): List<TodoItem> = withContext(Dispatchers.IO) {
+        val todos = mutableListOf<TodoItem>()
+
+        try {
+            val db = dbHelper.readableDatabase
+
+            // Target specifically the time column using BETWEEN
+            val selection = "${TodoDatabaseHelper.COLUMN_TIME} BETWEEN ? AND ?"
+            val selectionArgs = arrayOf(startTimeMillis.toString(), endTimeMillis.toString())
+
+            val cursor = db.query(
+                TodoDatabaseHelper.TABLE_TODOS,
+                null, // null means SELECT *
+                selection,
+                selectionArgs,
+                null, null, null
+            )
+
+            with(cursor) {
+                while (moveToNext()) {
+                    todos.add(
+                        TodoItem(
+                            id = getString(getColumnIndexOrThrow(TodoDatabaseHelper.COLUMN_ID)),
+                            title = getString(getColumnIndexOrThrow(TodoDatabaseHelper.COLUMN_TITLE)),
+                            status = Status.valueOf(getString(getColumnIndexOrThrow(TodoDatabaseHelper.COLUMN_STATUS))),
+                            type = getString(getColumnIndexOrThrow(TodoDatabaseHelper.COLUMN_TYPE)),
+                            icon = getString(getColumnIndexOrThrow(TodoDatabaseHelper.COLUMN_ICON)),
+                            colorArgb = getInt(getColumnIndexOrThrow(TodoDatabaseHelper.COLUMN_COLOR)),
+                            repeatGoal = getString(getColumnIndexOrThrow(TodoDatabaseHelper.COLUMN_REPEAT)),
+                            category = getString(getColumnIndexOrThrow(TodoDatabaseHelper.COLUMN_CATEGORY)),
+                            reminders = getString(getColumnIndexOrThrow(TodoDatabaseHelper.COLUMN_REMINDERS)),
+                            description = getString(getColumnIndexOrThrow(TodoDatabaseHelper.COLUMN_DESC)),
+                            timeInMillis = getLong(getColumnIndexOrThrow(TodoDatabaseHelper.COLUMN_TIME))
+                        )
+                    )
+                }
+            }
+            cursor.close()
+            db.close()
+
+        } catch (e: Exception) {
+            android.util.Log.e("DatabaseDebug", "CRASH DURING RANGE FETCH:", e)
+        }
+
+        return@withContext todos
+    }
+
     fun calculateNextTriggerTime(reminders: List<String>): Long? {
         if (reminders.isEmpty()) return null
 

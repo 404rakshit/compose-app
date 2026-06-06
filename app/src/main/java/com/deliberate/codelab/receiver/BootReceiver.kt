@@ -4,16 +4,24 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import com.deliberate.codelab.worker.DailyAlarmSyncWorker
 
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == Intent.ACTION_BOOT_COMPLETED || intent.action == Intent.ACTION_LOCKED_BOOT_COMPLETED) {
-            Log.d("BootReceiver", "Device rebooted. Rescheduling today's alarms...")
+            Log.d("BootReceiver", "Device rebooted. Triggering immediate alarm rebuild...")
 
-            // 1. You can trigger a OneTimeWorkRequest here to run your DailyAlarmSyncWorker
-            // OR
-            // 2. You can inject your TodoRepository and AndroidAlarmScheduler here
-            // and do a quick SQLite read for today's tasks.
+            // Fire a one-time request immediately to fix the AlarmManager
+            val repairRequest = OneTimeWorkRequestBuilder<DailyAlarmSyncWorker>().build()
+
+            WorkManager.getInstance(context).enqueueUniqueWork(
+                "BOOT_ALARM_REPAIR",
+                ExistingWorkPolicy.REPLACE,
+                repairRequest
+            )
         }
     }
 }

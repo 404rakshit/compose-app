@@ -1,7 +1,6 @@
 package com.deliberate.codelab.util
 
-import android.media.MediaPlayer
-import android.media.RingtoneManager
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
@@ -14,8 +13,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 
 class AlarmActivity : ComponentActivity() {
-
-    private var mediaPlayer: MediaPlayer? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -32,11 +29,10 @@ class AlarmActivity : ComponentActivity() {
             )
         }
 
-        // Keep the screen awake while the alarm is ringing
+        // Keep the screen awake while the UI is visible
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        // 🚨 2. START THE ALARM SOUND
-        playAlarmSound()
+        // Notice: playAlarmSound() is GONE. The Service is already playing it!
 
         val message = intent.getStringExtra("ALARM_MESSAGE") ?: "Time for your habit!"
 
@@ -55,40 +51,13 @@ class AlarmActivity : ComponentActivity() {
         }
     }
 
-    private fun playAlarmSound() {
-        try {
-            // Get the user's default system alarm sound
-            var alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-            if (alarmUri == null) {
-                // Fallback to standard notification sound if no alarm is set
-                alarmUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-            }
-
-            mediaPlayer = MediaPlayer.create(this, alarmUri).apply {
-                isLooping = true // Keep ringing until dismissed!
-                start()
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
     private fun turnOffAlarmAndFinish() {
-        mediaPlayer?.stop()
-        mediaPlayer?.release()
-        mediaPlayer = null
+        // Send an Intent to stop the Service (which stops the sound AND kills the notification)
+        val stopIntent = Intent(this, HabitAlarmService::class.java)
+        stopService(stopIntent)
 
-        // Remove the notification from the tray if they dismiss from the Activity
-        // val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        // notificationManager.cancel(MESSAGE_HASHCODE_IF_YOU_PASSED_IT)
-
-        finish() // Close the activity and let the user return to their lock screen
+        finish()
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        // Safety catch in case the OS destroys the activity (e.g., user swipes it away)
-        mediaPlayer?.stop()
-        mediaPlayer?.release()
-    }
+    // Notice: onDestroy() cleaning up MediaPlayer is also GONE!
 }
